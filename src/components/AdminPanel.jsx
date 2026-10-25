@@ -2,8 +2,8 @@ import { useId, useState } from 'react'
 import { isDemoMode } from '../lib/firebase'
 import { ChevronIcon, LockIcon, PlusIcon } from './icons'
 
-const ADMIN_PIN = (import.meta.env.VITE_ADMIN_PIN ?? '').trim()
-const PIN_REQUIRED = ADMIN_PIN !== ''
+// El PIN se valida en el servidor (función de Netlify) para no incluirlo en el bundle.
+const PIN_REQUIRED = !isDemoMode
 const SESSION_KEY = 'regalo-gemma:admin-unlocked'
 const EMPTY_FORM = { producto: '', precio: '', link: '', imagen: '' }
 
@@ -23,12 +23,11 @@ export default function AdminPanel({ onAddGift, onResetDemo }) {
   const [unlocked, setUnlocked] = useState(readUnlocked)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState('')
+  const [checkingPin, setCheckingPin] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [resetConfirm, setResetConfirm] = useState(false)
-
-  const canManage = PIN_REQUIRED ? unlocked : isDemoMode
 
   function updateField(event) {
     const { name, value } = event.target
@@ -36,13 +35,31 @@ export default function AdminPanel({ onAddGift, onResetDemo }) {
     if (error) setError('')
   }
 
-  function handleUnlock(event) {
+  async function handleUnlock(event) {
     event.preventDefault()
+    if (checkingPin) return
 
-    if (pin.trim() !== ADMIN_PIN) {
-      setPinError('PIN incorrecto. Inténtalo de nuevo.')
-      setPin('')
+    setCheckingPin(true)
+    setPinError('')
+
+    try {
+      const response = await fetch('/api/verify-admin-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin.trim() }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        setPinError(data?.error || 'PIN incorrecto. Inténtalo de nuevo.')
+        setPin('')
+        return
+      }
+    } catch {
+      setPinError('No se pudo verificar el PIN. Revisa tu conexión e inténtalo de nuevo.')
       return
+    } finally {
+      setCheckingPin(false)
     }
 
     try {
@@ -151,7 +168,7 @@ export default function AdminPanel({ onAddGift, onResetDemo }) {
                     aria-describedby={pinError ? `${pinId}-error` : undefined}
                     className="field"
                   />
-                  <button type="submit" className="btn-primary">
+                  <button type="submit" className="btn-primary" disabled={checkingPin}>
                     Desbloquear
                   </button>
                 </form>
@@ -165,21 +182,6 @@ export default function AdminPanel({ onAddGift, onResetDemo }) {
                     {pinError}
                   </p>
                 )}
-              </div>
-            ) : !canManage ? (
-              <div className="flex items-start gap-3 p-5 sm:p-6">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
-                  <LockIcon className="h-5 w-5" />
-                </span>
-                <div>
-                  <h3 className="font-display text-sm font-bold text-ink">
-                    Administración deshabilitada
-                  </h3>
-                  <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-                    Define <code className="rounded bg-slate-100 px-1 py-0.5">VITE_ADMIN_PIN</code>{' '}
-                    en tu archivo de entorno y vuelve a compilar para habilitar esta zona.
-                  </p>
-                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
