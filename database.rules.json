@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "regalos": {
+      ".read": true,
+      "$regalo": {
+        ".write": "newData.exists() && (!data.exists() || !data.child('reservado').val())",
+        ".validate": "newData.hasChildren(['producto', 'precio', 'link', 'reservado', 'regala_nombre']) && (newData.child('reservado').val() === false || newData.child('regala_nombre').val().length >= 2)",
+        "producto": {
+          ".validate": "newData.isString() && newData.val().length > 0"
+        },
+        "precio": {
+          ".validate": "newData.isString() && newData.val().length > 0"
+        },
+        "link": {
+          ".validate": "newData.isString()"
+        },
+        "imagen": {
+          ".validate": "newData.isString()"
+        },
+        "reservado": {
+          ".validate": "newData.isBoolean()"
+        },
+        "regala_nombre": {
+          ".validate": "newData.isString()"
+        }
+      }
+    }
+  }
+}
